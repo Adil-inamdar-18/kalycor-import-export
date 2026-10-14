@@ -69,9 +69,9 @@ export function MarketsBlock({ dark = false }: { dark?: boolean }) {
   );
 }
 
-export function AboutBlock({ cta = true }: { cta?: boolean }) {
+export function AboutBlock({ cta = true, pad = "py-24 sm:py-32" }: { cta?: boolean; pad?: string }) {
   return (
-    <section className="py-24 sm:py-32">
+    <section className={pad}>
       <div className="wrap grid items-center gap-12 lg:grid-cols-[1.1fr_1fr] lg:gap-20">
         <DoorReveal className="relative aspect-[3/2] overflow-hidden"><Image src="/images/trade-hero.jpg" alt="Cargo and trade logistics" fill sizes="(min-width:1024px) 55vw, 100vw" className="object-cover" /></DoorReveal>
         <Reveal>
@@ -85,9 +85,9 @@ export function AboutBlock({ cta = true }: { cta?: boolean }) {
   );
 }
 
-export function WhyTable() {
+export function WhyTable({ pad = "py-24 sm:py-32" }: { pad?: string }) {
   return (
-    <section className="py-24 sm:py-32">
+    <section className={pad}>
       <div className="wrap"><Intro title="Why choose Kalycor Import & Export" />
         <dl className="mt-12 border-t-2 border-ink">
           {why.map((w) => (<div key={w.title} className="grid gap-2 border-b border-line py-6 transition-colors hover:bg-white sm:grid-cols-[1fr_2fr] sm:px-4"><dt className="font-display text-2xl font-bold">{w.title}</dt><dd className="text-slate-600">{w.text}</dd></div>))}
@@ -97,9 +97,9 @@ export function WhyTable() {
   );
 }
 
-export function CTABand({ title = "Let’s Build Global Connections.", text = "Tell us what you want to import or export and we will respond." }: { title?: string; text?: string }) {
+export function CTABand({ title = "Let’s Build Global Connections.", text = "Tell us what you want to import or export and we will respond.", pad = "py-24 sm:py-32" }: { title?: string; text?: string; pad?: string }) {
   return (
-    <section className="relative overflow-hidden bg-box py-24 text-white sm:py-32">
+    <section className={`relative overflow-hidden bg-box text-white ${pad}`}>
       <div aria-hidden className="corrugated absolute inset-0 opacity-60" />
       <div className="wrap relative flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-end">
         <div><h2 className="h-display" style={{ fontSize: "clamp(2.5rem, 7vw, 6rem)" }}>{title}</h2><p className="lead mt-4 max-w-xl">{text}</p></div>
