@@ -5,7 +5,12 @@ const config: Config = {
     extend: {
       colors: {
         ink: "#08192B",
-        harbor: { 950: "#0A2038", 900: "#0F2D4D", 800: "#163F6A", 700: "#1F5489" },
+        harbor: {
+          950: "#0A2038",
+          900: "#0F2D4D",
+          800: "#163F6A",
+          700: "#1F5489",
+        },
         box: { DEFAULT: "#C8481C", dark: "#9E3512", light: "#E8764A" },
         sea: "#2C8596",
         fog: "#EDF0F3",

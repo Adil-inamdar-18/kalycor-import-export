@@ -3,24 +3,84 @@
 @tailwind utilities;
 
 @layer base {
-  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
-  body { @apply bg-chart font-sans text-ink antialiased; overflow-x: hidden; }
-  h1, h2, h3, h4 { @apply font-display; letter-spacing: -0.025em; text-wrap: balance; }
-  p { text-wrap: pretty; }
-  :focus-visible { outline: 2px solid #E8764A; outline-offset: 3px; }
-  ::selection { background: #C8481C; color: #fff; }
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-chart font-sans text-ink antialiased;
+    overflow-x: hidden;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid #e8764a;
+    outline-offset: 3px;
+  }
+  ::selection {
+    background: #c8481c;
+    color: #fff;
+  }
 }
 @layer components {
-  .wrap { @apply mx-auto w-full max-w-page px-5 sm:px-8 lg:px-12; }
-  .h-display { @apply font-display font-bold leading-[0.92]; font-size: clamp(2.75rem, 8.4vw, 8rem); letter-spacing: -0.04em; }
-  .h-section { @apply font-display font-bold leading-[1.02]; font-size: clamp(2rem, 4.4vw, 3.75rem); }
-  .lead { @apply text-lg leading-relaxed sm:text-xl; }
+  .wrap {
+    @apply mx-auto w-full max-w-page px-5 sm:px-8 lg:px-12;
+  }
+  .h-display {
+    @apply font-display font-bold leading-[0.92];
+    font-size: clamp(2.75rem, 8.4vw, 8rem);
+    letter-spacing: -0.04em;
+  }
+  .h-section {
+    @apply font-display font-bold leading-[1.02];
+    font-size: clamp(2rem, 4.4vw, 3.75rem);
+  }
+  .lead {
+    @apply text-lg leading-relaxed sm:text-xl;
+  }
   /* shipping-container corrugation */
-  .corrugated { background-image: repeating-linear-gradient(90deg, rgba(0,0,0,.16) 0 3px, rgba(255,255,255,.07) 3px 6px); }
+  .corrugated {
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.16) 0 3px,
+      rgba(255, 255, 255, 0.07) 3px 6px
+    );
+  }
 }
-@keyframes sweep { from { transform: translateX(-30%); } to { transform: translateX(130%); } }
+@keyframes sweep {
+  from {
+    transform: translateX(-30%);
+  }
+  to {
+    transform: translateX(130%);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
-@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
