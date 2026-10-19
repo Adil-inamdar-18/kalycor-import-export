@@ -165,7 +165,7 @@ export function AboutBlock({
   return (
     <section className={pad}>
       <div className="wrap grid items-center gap-12 lg:grid-cols-[1.1fr_1fr] lg:gap-20">
-        <DoorReveal className="relative aspect-[3/2] overflow-hidden">
+        <DoorReveal className="relative hidden aspect-[3/2] overflow-hidden lg:block">
           <Image
             src="/images/trade-hero.jpg"
             alt="Cargo and trade logistics"
