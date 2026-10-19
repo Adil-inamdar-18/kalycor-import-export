@@ -1,19 +1,15 @@
 "use client";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { useReducedMotion } from "framer-motion";
-import { MAP_COLS, MAP_LAT_BOTTOM, MAP_LAT_TOP, MAP_ROWS, worldDots } from "@/content/worldDots";
+import {
+  MAP_COLS,
+  MAP_LAT_BOTTOM,
+  MAP_LAT_TOP,
+  MAP_ROWS,
+  worldDots,
+} from "@/content/worldDots";
 import { homeBase, markets } from "@/content/site";
 
-/**
- * Canvas globe for the home hero.
- * A dot-matrix Earth with shimmering ocean swell that turns through three scenes:
- *   1. Sea freight  - container ships ploughing through animated water, with wakes and ripples
- *   2. Air cargo    - planes climbing along lifted flight arcs, with contrails and shadows
- *   3. Road haulage - trucks rolling along highways, with headlights and dust
- * The globe glides from scene to scene on its own, can be dragged, and can be sent to a scene with goTo().
- * Vehicles are decorative. Trade arcs use homeBase + markets from content/site.ts once those have lon/lat;
- * until then decorative hubs are used so nothing is claimed about unconfirmed markets.
- */
 type V3 = [number, number, number];
 type LL = [number, number];
 const RAD = Math.PI / 180;
@@ -25,15 +21,19 @@ const smooth = (a: number, b: number, v: number) => {
 };
 const posMod = (a: number) => ((a % TAU) + TAU) % TAU;
 const wrapPI = (a: number) => posMod(a + Math.PI) - Math.PI;
-const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeInOut = (t: number) =>
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 const toVec = (lon: number, lat: number): V3 => {
   const la = lat * RAD;
   const lo = lon * RAD;
-  return [Math.cos(la) * Math.sin(lo), Math.sin(la), Math.cos(la) * Math.cos(lo)];
+  return [
+    Math.cos(la) * Math.sin(lo),
+    Math.sin(la),
+    Math.cos(la) * Math.cos(lo),
+  ];
 };
 
-/* ------------------------------------------------------------------ scenes */
 export const GLOBE_SCENES = [
   { id: "sea", label: "Sea freight", lon: 68, lat: 13 },
   { id: "air", label: "Air cargo", lon: -168, lat: 18 },
@@ -41,7 +41,7 @@ export const GLOBE_SCENES = [
 ] as const;
 const SCENE_LON = GLOBE_SCENES.map((s) => s.lon * RAD);
 const SCENE_TILT = GLOBE_SCENES.map((s) => s.lat * RAD * 0.9);
-const DWELL = 8.5; // seconds spent on each scene before turning to the next
+const DWELL = 8.5;
 const nearestScene = (lonC: number) => {
   let best = 0;
   let bd = 9;
@@ -56,22 +56,28 @@ const nearestScene = (lonC: number) => {
 };
 
 export type GlobeHandle = { goTo: (scene: number) => void };
-type Props = { className?: string; onScene?: (scene: number) => void; onInteract?: () => void };
+type Props = {
+  className?: string;
+  onScene?: (scene: number) => void;
+  onInteract?: () => void;
+};
 
-/* ------------------------------------------------------------------ land + ocean */
 const LAND: V3[] = (() => {
   const out: V3[] = [];
   for (const [c, r] of worldDots) {
     const lon = (c / (MAP_COLS - 1)) * 360 - 180;
-    const lat = MAP_LAT_TOP - (r / (MAP_ROWS - 1)) * (MAP_LAT_TOP - MAP_LAT_BOTTOM);
-    const step = Math.min(6, Math.max(1, Math.round(1 / Math.max(0.05, Math.cos(lat * RAD)))));
+    const lat =
+      MAP_LAT_TOP - (r / (MAP_ROWS - 1)) * (MAP_LAT_TOP - MAP_LAT_BOTTOM);
+    const step = Math.min(
+      6,
+      Math.max(1, Math.round(1 / Math.max(0.05, Math.cos(lat * RAD)))),
+    );
     if (c % step === 0) out.push(toVec(lon, lat));
   }
   return out;
 })();
 const N_LAND = LAND.length;
 
-// ocean glints: scattered open-water points (kept clear of coastlines) that shimmer as a travelling swell
 const OCEAN = (() => {
   const land = new Set<number>();
   for (const [c, r] of worldDots) land.add(r * MAP_COLS + c);
@@ -84,10 +90,18 @@ const OCEAN = (() => {
     for (let c = 1; c < MAP_COLS - 1; c++) {
       if (rnd() < 0.7) continue;
       let near = false;
-      for (let dr = -1; dr <= 1 && !near; dr++) for (let dc = -1; dc <= 1; dc++) if (isLand(c + dc, r + dr)) { near = true; break; }
+      for (let dr = -1; dr <= 1 && !near; dr++)
+        for (let dc = -1; dc <= 1; dc++)
+          if (isLand(c + dc, r + dr)) {
+            near = true;
+            break;
+          }
       if (near) continue;
       const lon = ((c + (rnd() - 0.5) * 1.5) / (MAP_COLS - 1)) * 360 - 180;
-      const lat = MAP_LAT_TOP - ((r + (rnd() - 0.5) * 1.5) / (MAP_ROWS - 1)) * (MAP_LAT_TOP - MAP_LAT_BOTTOM);
+      const lat =
+        MAP_LAT_TOP -
+        ((r + (rnd() - 0.5) * 1.5) / (MAP_ROWS - 1)) *
+          (MAP_LAT_TOP - MAP_LAT_BOTTOM);
       if (Math.abs(lat) > 72) continue;
       v.push(...toVec(lon, lat));
       ph.push(lon * 0.11 + lat * 0.19 + rnd() * 1.2);
@@ -96,20 +110,56 @@ const OCEAN = (() => {
   return { v: Float32Array.from(v), ph: Float32Array.from(ph), n: ph.length };
 })();
 
-/* ------------------------------------------------------------------ trade arcs (decorative network) */
-const DECOR_HUBS: LL[] = [[73.8, 20], [55.3, 25.2], [4.5, 51.9], [103.8, 1.3], [-74, 40.7], [151.2, -33.9], [-46.6, -23.5], [139.7, 35.7], [31.2, 30], [28, -26]];
-const DECOR_ROUTES: [number, number][] = [[0, 1], [0, 2], [0, 3], [1, 2], [3, 7], [2, 4], [0, 5], [1, 8], [8, 2], [0, 9], [6, 4], [3, 5]];
+const DECOR_HUBS: LL[] = [
+  [73.8, 20],
+  [55.3, 25.2],
+  [4.5, 51.9],
+  [103.8, 1.3],
+  [-74, 40.7],
+  [151.2, -33.9],
+  [-46.6, -23.5],
+  [139.7, 35.7],
+  [31.2, 30],
+  [28, -26],
+];
+const DECOR_ROUTES: [number, number][] = [
+  [0, 1],
+  [0, 2],
+  [0, 3],
+  [1, 2],
+  [3, 7],
+  [2, 4],
+  [0, 5],
+  [1, 8],
+  [8, 2],
+  [0, 9],
+  [6, 4],
+  [3, 5],
+];
 
-const placed = markets.filter((m) => m.lon !== undefined && m.lat !== undefined);
-const real = !!homeBase && homeBase.lon !== undefined && homeBase.lat !== undefined && placed.length > 0;
-const NODES: V3[] = real ? [homeBase!, ...placed].map((m) => toVec(m.lon!, m.lat!)) : DECOR_HUBS.map(([lo, la]) => toVec(lo, la));
-const ROUTES: [number, number][] = real ? placed.map((_, i) => [0, i + 1] as [number, number]) : DECOR_ROUTES;
+const placed = markets.filter(
+  (m) => m.lon !== undefined && m.lat !== undefined,
+);
+const real =
+  !!homeBase &&
+  homeBase.lon !== undefined &&
+  homeBase.lat !== undefined &&
+  placed.length > 0;
+const NODES: V3[] = real
+  ? [homeBase!, ...placed].map((m) => toVec(m.lon!, m.lat!))
+  : DECOR_HUBS.map(([lo, la]) => toVec(lo, la));
+const ROUTES: [number, number][] = real
+  ? placed.map((_, i) => [0, i + 1] as [number, number])
+  : DECOR_ROUTES;
 
 const ARC_N = 48;
 const ARCS: Float32Array[] = ROUTES.map(([i, j]) => {
   const a = NODES[i];
   const b = NODES[j];
-  const dot = Math.min(1, Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+  const dot = Math.min(
+    1,
+    Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]),
+  );
   const om = Math.acos(dot);
   const so = Math.sin(om) || 1;
   const h = 0.05 + 0.2 * (om / Math.PI);
@@ -151,7 +201,11 @@ const RING: Float32Array = (() => {
     const y = Math.sin(th) * 1.34;
     const y2 = y * Math.cos(incl);
     const z2 = y * Math.sin(incl);
-    pts.push(x * Math.cos(roll) - y2 * Math.sin(roll), x * Math.sin(roll) + y2 * Math.cos(roll), z2);
+    pts.push(
+      x * Math.cos(roll) - y2 * Math.sin(roll),
+      x * Math.sin(roll) + y2 * Math.cos(roll),
+      z2,
+    );
   }
   return new Float32Array(pts);
 })();
@@ -165,7 +219,12 @@ const STYLE = Array.from({ length: BUCKETS }, (_, k) => {
 const STARS = (() => {
   let s = 7;
   const rnd = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
-  return Array.from({ length: 130 }, () => ({ x: rnd(), y: rnd(), r: 0.4 + rnd() * 1.1, p: rnd() * 6.28 }));
+  return Array.from({ length: 130 }, () => ({
+    x: rnd(),
+    y: rnd(),
+    r: 0.4 + rnd() * 1.1,
+    p: rnd() * 6.28,
+  }));
 })();
 
 const LX = -0.45;
@@ -173,9 +232,7 @@ const LY = 0.55;
 const LZ = 0.7;
 const L_LEN = Math.hypot(LX, LY, LZ);
 
-/* ------------------------------------------------------------------ vehicle routes */
 type Route = { pts: Float32Array; cum: Float32Array; n: number; len: number };
-/** Densified great-circle path through waypoints (lon, lat). `len` is the arc length in radians. */
 const buildRoute = (wp: LL[], step = 0.012): Route => {
   const vs = wp.map(([lo, la]) => toVec(lo, la));
   const out: number[] = [];
@@ -191,14 +248,23 @@ const buildRoute = (wp: LL[], step = 0.012): Route => {
       const t = k / steps;
       const k1 = Math.sin((1 - t) * om) / so;
       const k2 = Math.sin(t * om) / so;
-      out.push(k1 * a[0] + k2 * b[0], k1 * a[1] + k2 * b[1], k1 * a[2] + k2 * b[2]);
+      out.push(
+        k1 * a[0] + k2 * b[0],
+        k1 * a[1] + k2 * b[1],
+        k1 * a[2] + k2 * b[2],
+      );
       cum.push(acc + t * om);
     }
     acc += om;
   }
   out.push(...vs[vs.length - 1]);
   cum.push(acc);
-  return { pts: Float32Array.from(out), cum: Float32Array.from(cum), n: cum.length, len: acc };
+  return {
+    pts: Float32Array.from(out),
+    cum: Float32Array.from(cum),
+    n: cum.length,
+    len: acc,
+  };
 };
 const sampleRoute = (r: Route, f: number, out: Float32Array) => {
   const target = clamp(f, 0, 1) * r.len;
@@ -220,27 +286,115 @@ const sampleRoute = (r: Route, f: number, out: Float32Array) => {
 };
 
 type Kind = "ship" | "plane" | "truck";
-type Vehicle = { kind: Kind; scene: number; route: Route; dur: number; f0: number; size: number; dir: number };
+type Vehicle = {
+  kind: Kind;
+  scene: number;
+  route: Route;
+  dur: number;
+  f0: number;
+  size: number;
+  dir: number;
+};
 const VEHICLES: Vehicle[] = [
-  // sea: Arabian Sea -> Gulf of Aden (westbound) and round Sri Lanka toward the Malacca Strait (eastbound)
-  { kind: "ship", scene: 0, route: buildRoute([[72.6, 18.4], [65.5, 16.2], [58, 14.4], [51, 12.9], [44.8, 12.3]]), dur: 12, f0: 0.34, size: 0.235, dir: -1 },
-  { kind: "ship", scene: 0, route: buildRoute([[74.2, 9.0], [77.6, 6.9], [80.6, 5.2], [86, 5.0], [92, 5.8], [96.6, 6.6]]), dur: 11, f0: 0.12, size: 0.21, dir: 1 },
-  // air: trans-Pacific arcs
-  { kind: "plane", scene: 1, route: buildRoute([[151.2, -33.9], [-118.2, 34.1]]), dur: 15, f0: 0.24, size: 0.19, dir: 1 },
-  { kind: "plane", scene: 1, route: buildRoute([[-157.9, 21.3], [139.7, 35.7]]), dur: 10, f0: 0.1, size: 0.165, dir: -1 },
-  // road: Santos -> Santa Cruz (westbound) and Mendoza -> Buenos Aires (eastbound)
-  { kind: "truck", scene: 2, route: buildRoute([[-46.3, -23.9], [-50.5, -22.6], [-54.6, -20.5], [-57.6, -19.1], [-63.2, -17.8]]), dur: 9, f0: 0.3, size: 0.19, dir: -1 },
-  { kind: "truck", scene: 2, route: buildRoute([[-70.6, -33.4], [-68.8, -32.9], [-64.2, -31.4], [-60.6, -32.9], [-58.4, -34.6]]), dur: 8, f0: 0.14, size: 0.17, dir: 1 },
+  {
+    kind: "ship",
+    scene: 0,
+    route: buildRoute([
+      [72.6, 18.4],
+      [65.5, 16.2],
+      [58, 14.4],
+      [51, 12.9],
+      [44.8, 12.3],
+    ]),
+    dur: 12,
+    f0: 0.34,
+    size: 0.235,
+    dir: -1,
+  },
+  {
+    kind: "ship",
+    scene: 0,
+    route: buildRoute([
+      [74.2, 9.0],
+      [77.6, 6.9],
+      [80.6, 5.2],
+      [86, 5.0],
+      [92, 5.8],
+      [96.6, 6.6],
+    ]),
+    dur: 11,
+    f0: 0.12,
+    size: 0.21,
+    dir: 1,
+  },
+  {
+    kind: "plane",
+    scene: 1,
+    route: buildRoute([
+      [151.2, -33.9],
+      [-118.2, 34.1],
+    ]),
+    dur: 15,
+    f0: 0.24,
+    size: 0.19,
+    dir: 1,
+  },
+  {
+    kind: "plane",
+    scene: 1,
+    route: buildRoute([
+      [-157.9, 21.3],
+      [139.7, 35.7],
+    ]),
+    dur: 10,
+    f0: 0.1,
+    size: 0.165,
+    dir: -1,
+  },
+  {
+    kind: "truck",
+    scene: 2,
+    route: buildRoute([
+      [-46.3, -23.9],
+      [-50.5, -22.6],
+      [-54.6, -20.5],
+      [-57.6, -19.1],
+      [-63.2, -17.8],
+    ]),
+    dur: 9,
+    f0: 0.3,
+    size: 0.19,
+    dir: -1,
+  },
+  {
+    kind: "truck",
+    scene: 2,
+    route: buildRoute([
+      [-70.6, -33.4],
+      [-68.8, -32.9],
+      [-64.2, -31.4],
+      [-60.6, -32.9],
+      [-58.4, -34.6],
+    ]),
+    dur: 8,
+    f0: 0.14,
+    size: 0.17,
+    dir: 1,
+  },
 ];
-const PAUSE = 1.3; // seconds a vehicle rests out of sight before it sets off again
-const PLANE_LIFT = 0.13; // cruise altitude as a fraction of the globe radius
-
-/* ------------------------------------------------------------------ sprites (drawn facing +x, length 1) */
+const PAUSE = 1.3;
+const PLANE_LIFT = 0.13;
 type Ctx = CanvasRenderingContext2D;
-const BOX_COLORS = ["#C8481C", "#2C8596", "#E8764A", "#1F5489", "#9E3512", "#4FB3C4"];
+const BOX_COLORS = [
+  "#C8481C",
+  "#2C8596",
+  "#E8764A",
+  "#1F5489",
+  "#9E3512",
+  "#4FB3C4",
+];
 
 function drawShip(c: Ctx, t: number) {
-  // hull
   c.fillStyle = "#e8eef6";
   c.beginPath();
   c.moveTo(-0.5, -0.045);
@@ -257,7 +411,6 @@ function drawShip(c: Ctx, t: number) {
   c.lineTo(-0.46, 0.075);
   c.closePath();
   c.fill();
-  // container stacks
   const stacks = [2, 3, 3, 3, 2, 3];
   const cw = 0.095;
   c.lineWidth = 0.004;
@@ -270,7 +423,6 @@ function drawShip(c: Ctx, t: number) {
       c.strokeRect(x, -0.045 - (j + 1) * 0.052, cw, 0.048);
     }
   }
-  // superstructure
   c.fillStyle = "#f7f9fc";
   c.fillRect(-0.47, -0.15, 0.17, 0.105);
   c.fillRect(-0.45, -0.195, 0.13, 0.045);
@@ -280,10 +432,10 @@ function drawShip(c: Ctx, t: number) {
   c.fillRect(-0.4, -0.24, 0.04, 0.046);
   c.fillStyle = "#0b2a45";
   c.fillRect(-0.4, -0.24, 0.04, 0.01);
-  // water laps the hull
   c.beginPath();
   c.moveTo(-0.72, 0.2);
-  for (let x = -0.72; x <= 0.72; x += 0.04) c.lineTo(x, 0.054 + 0.012 * Math.sin(x * 14 - t * 3.2));
+  for (let x = -0.72; x <= 0.72; x += 0.04)
+    c.lineTo(x, 0.054 + 0.012 * Math.sin(x * 14 - t * 3.2));
   c.lineTo(0.72, 0.2);
   c.closePath();
   const g = c.createLinearGradient(0, 0.04, 0, 0.18);
@@ -300,12 +452,17 @@ function drawShip(c: Ctx, t: number) {
     else c.lineTo(x, y);
   }
   c.stroke();
-  // bow spray
   c.fillStyle = "rgba(240,250,255,0.85)";
   for (let i = 0; i < 4; i++) {
     const p = (t * 1.4 + i * 0.25) % 1;
     c.beginPath();
-    c.arc(0.5 + p * 0.07, 0.05 - p * 0.05 + 0.012 * Math.sin(i * 3 + t * 5), 0.011 * (1 - p), 0, TAU);
+    c.arc(
+      0.5 + p * 0.07,
+      0.05 - p * 0.05 + 0.012 * Math.sin(i * 3 + t * 5),
+      0.011 * (1 - p),
+      0,
+      TAU,
+    );
     c.fill();
   }
 }
@@ -473,14 +630,20 @@ function drawTruck(c: Ctx, t: number) {
   }
 }
 
-/* ------------------------------------------------------------------ component */
-export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ className, onScene, onInteract }, ref) {
+export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe(
+  { className, onScene, onInteract },
+  ref,
+) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reduce = useReducedMotion();
   const cb = useRef({ onScene, onInteract });
   cb.current = { onScene, onInteract };
   const api = useRef<GlobeHandle | null>(null);
-  useImperativeHandle(ref, () => ({ goTo: (i: number) => api.current?.goTo(i) }), []);
+  useImperativeHandle(
+    ref,
+    () => ({ goTo: (i: number) => api.current?.goTo(i) }),
+    [],
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -506,7 +669,14 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
     let facing = -1;
     let clock = 0;
     let holdUntil = DWELL + 1.5;
-    let glide: { t0: number; dur: number; l0: number; l1: number; a0: number; a1: number } | null = null;
+    let glide: {
+      t0: number;
+      dur: number;
+      l0: number;
+      l1: number;
+      a0: number;
+      a1: number;
+    } | null = null;
     let vel = 0;
     let dragging = false;
 
@@ -536,12 +706,18 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
       canvas.height = Math.round(h * dpr);
     };
 
-    /* ---- scene controller ---- */
     const startGlide = (idx: number, forward: boolean, hold: number) => {
       const target = SCENE_LON[idx];
       const delta = forward ? posMod(target - lonC) : wrapPI(target - lonC);
       const dur = clamp(1.5 + Math.abs(delta) * 0.85, 1.8, 3.6);
-      glide = { t0: clock, dur, l0: lonC, l1: lonC + delta, a0: tiltC, a1: SCENE_TILT[idx] };
+      glide = {
+        t0: clock,
+        dur,
+        l0: lonC,
+        l1: lonC + delta,
+        a0: tiltC,
+        a1: SCENE_TILT[idx],
+      };
       scene = idx;
       holdUntil = clock + dur + hold;
       vel = 0;
@@ -565,7 +741,8 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         } else vel = 0;
         lonC += dt * 0.012;
         tiltC += (SCENE_TILT[scene] - tiltC) * Math.min(1, dt * 1.6);
-        if (clock >= holdUntil) startGlide((scene + 1) % GLOBE_SCENES.length, true, DWELL);
+        if (clock >= holdUntil)
+          startGlide((scene + 1) % GLOBE_SCENES.length, true, DWELL);
       }
       tiltUser += (tiltUserTarget - tiltUser) * Math.min(1, dt * 7);
       if (!dragging) tiltUserTarget *= Math.exp(-dt * 1.3);
@@ -576,14 +753,12 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
       }
     };
 
-    /* ---- drawing ---- */
     const render = (time: number) => {
       const intro = reduce ? 1 : Math.min(1, time / 1.8);
       const ease = 1 - Math.pow(1 - intro, 3);
       const wide = w >= 1024;
       const tablet = w >= 640 && w < 1024;
 
-      // Larger globe on desktop, balanced placement on tablet and mobile.
       const R0 = wide
         ? Math.min(h * 0.72, w * 0.315)
         : tablet
@@ -595,8 +770,16 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
       G.cx = cx;
       G.cy = cy;
       G.R = R;
-      const rot = -(lonC - (1 - ease) * (1 - ease) * 1.8 + (mouse.sx - 0.5) * -0.2);
-      const tilt = clamp(tiltC + tiltUser + (mouse.sy - 0.5) * 0.1, -0.95, 0.95);
+      const rot = -(
+        lonC -
+        (1 - ease) * (1 - ease) * 1.8 +
+        (mouse.sx - 0.5) * -0.2
+      );
+      const tilt = clamp(
+        tiltC + tiltUser + (mouse.sy - 0.5) * 0.1,
+        -0.95,
+        0.95,
+      );
       const cosR = Math.cos(rot);
       const sinR = Math.sin(rot);
       const cosT = Math.cos(tilt);
@@ -604,7 +787,13 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
       let X = 0;
       let Y = 0;
       let Z = 0;
-      const proj = (x: number, y: number, z: number, s: number, spin: boolean) => {
+      const proj = (
+        x: number,
+        y: number,
+        z: number,
+        s: number,
+        spin: boolean,
+      ) => {
         const x1 = spin ? x * cosR + z * sinR : x;
         const z1 = spin ? -x * sinR + z * cosR : z;
         const y2 = y * cosT - z1 * sinT;
@@ -612,12 +801,11 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         X = cx + x1 * s;
         Y = cy - y2 * s;
       };
-      const u = R / 380; // pixel scale relative to a typical desktop globe
+      const u = R / 380;
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
-      // stars
       for (const s of STARS) {
         const tw = reduce ? 0.6 : 0.45 + 0.4 * Math.sin(time * 1.3 + s.p);
         ctx.fillStyle = `rgba(210,228,255,${(tw * 0.55).toFixed(3)})`;
@@ -626,7 +814,6 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
 
       ctx.globalAlpha = ease;
 
-      // atmosphere halo
       const halo = ctx.createRadialGradient(cx, cy, R * 0.82, cx, cy, R * 1.55);
       halo.addColorStop(0, "rgba(65,155,255,0.30)");
       halo.addColorStop(0.45, "rgba(36,117,210,0.18)");
@@ -637,10 +824,11 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
       ctx.arc(cx, cy, R * 1.55, 0, Math.PI * 2);
       ctx.fill();
 
-      // orbit ring (back half, hidden by the globe)
       const ring = (front: boolean) => {
         ctx.lineWidth = 1;
-        ctx.strokeStyle = front ? "rgba(160,205,255,0.22)" : "rgba(160,205,255,0.1)";
+        ctx.strokeStyle = front
+          ? "rgba(160,205,255,0.22)"
+          : "rgba(160,205,255,0.1)";
         ctx.beginPath();
         let pen = false;
         for (let k = 0; k <= 160; k++) {
@@ -655,14 +843,13 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
       };
       ring(false);
 
-      // globe body
       const body = ctx.createRadialGradient(
         cx - R * 0.38,
         cy - R * 0.43,
         R * 0.04,
         cx + R * 0.08,
         cy + R * 0.08,
-        R * 1.2
+        R * 1.2,
       );
       body.addColorStop(0, "#23588b");
       body.addColorStop(0.28, "#174775");
@@ -674,7 +861,6 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
       ctx.arc(cx, cy, R, 0, Math.PI * 2);
       ctx.fill();
 
-      // graticule
       ctx.lineWidth = 0.8;
       ctx.strokeStyle = "rgba(140,190,255,0.09)";
       ctx.beginPath();
@@ -691,7 +877,6 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
       }
       ctx.stroke();
 
-      // ocean swell: glints that brighten and fade as a wave travels across open water
       for (let i = 0; i < OCEAN.n; i++) {
         const x = OCEAN.v[i * 3];
         const y = OCEAN.v[i * 3 + 1];
@@ -705,7 +890,9 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
           continue;
         }
         const ph = OCEAN.ph[i];
-        const b = (0.5 + 0.5 * Math.sin(time * 1.35 - ph * 2.2)) * smooth(0.08, 0.4, z2);
+        const b =
+          (0.5 + 0.5 * Math.sin(time * 1.35 - ph * 2.2)) *
+          smooth(0.08, 0.4, z2);
         opx[i] = cx + x1 * R;
         opy[i] = cy - y2 * R + Math.sin(time * 1.7 + ph * 1.3) * 0.9 * u;
         opz[i] = z2;
@@ -729,7 +916,6 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         ctx.stroke();
       }
 
-      // land dots
       for (let i = 0; i < N_LAND; i++) {
         const v = LAND[i];
         const x1 = v[0] * cosR + v[2] * sinR;
@@ -758,7 +944,6 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         ctx.fill();
       }
 
-      // sea lanes, flight paths and roads
       ctx.lineCap = "round";
       for (const v of VEHICLES) {
         const lanes = v.kind === "plane" ? 0 : 1;
@@ -767,12 +952,20 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         ctx.lineWidth = 1.1 * u;
         ctx.setLineDash(v.kind === "plane" ? [1.5 * u, 6 * u] : [4 * u, 6 * u]);
         ctx.lineDashOffset = reduce ? 0 : -time * 9 * u * (v.dir > 0 ? 1 : -1);
-        ctx.strokeStyle = v.kind === "ship" ? "rgba(140,215,255,0.34)" : v.kind === "truck" ? "rgba(255,200,150,0.34)" : "rgba(220,235,255,0.2)";
+        ctx.strokeStyle =
+          v.kind === "ship"
+            ? "rgba(140,215,255,0.34)"
+            : v.kind === "truck"
+              ? "rgba(255,200,150,0.34)"
+              : "rgba(220,235,255,0.2)";
         ctx.beginPath();
         let pen = false;
         for (let i = 0; i < r.n; i += stepN) {
           const f = r.cum[i] / (r.len || 1);
-          const lift = v.kind === "plane" ? PLANE_LIFT * R * Math.pow(Math.sin(Math.PI * f), 0.6) : 0;
+          const lift =
+            v.kind === "plane"
+              ? PLANE_LIFT * R * Math.pow(Math.sin(Math.PI * f), 0.6)
+              : 0;
           proj(r.pts[i * 3], r.pts[i * 3 + 1], r.pts[i * 3 + 2], R, true);
           if (Z > 0.02) {
             if (pen) ctx.lineTo(X, Y - lift);
@@ -785,7 +978,6 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
       }
       ctx.setLineDash([]);
 
-      // trade routes (decorative network, kept subtle so the vehicles lead)
       const startAt = reduce ? 0 : 1.3;
       ctx.globalCompositeOperation = "lighter";
       for (let r = 0; r < ARCS.length; r++) {
@@ -812,7 +1004,8 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         ctx.stroke();
 
         const period = 5.5 + (r % 3);
-        const head = ((((time - startAt - r * 0.8) / period) % 1.45) + 1.45) % 1.45;
+        const head =
+          ((((time - startAt - r * 0.8) / period) % 1.45) + 1.45) % 1.45;
         if (time < startAt + r * 0.8 && !reduce) continue;
         const lo = Math.max(0, head - 0.4);
         const hi = Math.min(1, head);
@@ -832,7 +1025,14 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         if (head <= 1) {
           const hk = Math.min(ARC_N, Math.round(head * ARC_N));
           if (av[hk]) {
-            const g = ctx.createRadialGradient(ax[hk], ay[hk], 0, ax[hk], ay[hk], 11);
+            const g = ctx.createRadialGradient(
+              ax[hk],
+              ay[hk],
+              0,
+              ax[hk],
+              ay[hk],
+              11,
+            );
             g.addColorStop(0, "rgba(255,225,200,0.8)");
             g.addColorStop(0.3, "rgba(255,150,100,0.35)");
             g.addColorStop(1, "rgba(232,118,74,0)");
@@ -844,7 +1044,6 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         }
       }
 
-      // hub nodes with pulse rings
       for (let n = 0; n < NODES.length; n++) {
         const v = NODES[n];
         proj(v[0], v[1], v[2], R, true);
@@ -862,13 +1061,15 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
       }
       ctx.globalCompositeOperation = "source-over";
 
-      // ---- vehicles ----
       const at = (r: Route, f: number, lift: number) => {
         sampleRoute(r, f, tmp);
         proj(tmp[0], tmp[1], tmp[2], R, true);
         Y -= lift;
       };
-      const liftOf = (v: Vehicle, f: number) => (v.kind === "plane" ? PLANE_LIFT * R * Math.pow(Math.sin(Math.PI * clamp(f, 0, 1)), 0.6) : 0);
+      const liftOf = (v: Vehicle, f: number) =>
+        v.kind === "plane"
+          ? PLANE_LIFT * R * Math.pow(Math.sin(Math.PI * clamp(f, 0, 1)), 0.6)
+          : 0;
 
       for (const v of VEHICLES) {
         const cyc = v.dur + PAUSE;
@@ -885,11 +1086,12 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         const vis = smooth(0.06, 0.34, sz) * fade;
         if (vis <= 0.01) continue;
         const lift = liftOf(v, f);
-        const alt01 = v.kind === "plane" ? Math.pow(Math.sin(Math.PI * f), 0.6) : 0;
-        const L = v.size * R * (0.62 + 0.38 * Math.pow(sz, 0.6)) * (1 + 0.28 * alt01);
+        const alt01 =
+          v.kind === "plane" ? Math.pow(Math.sin(Math.PI * f), 0.6) : 0;
+        const L =
+          v.size * R * (0.62 + 0.38 * Math.pow(sz, 0.6)) * (1 + 0.28 * alt01);
         const wob = reduce ? 0 : 1;
 
-        // heading on screen
         const f1 = Math.min(1, f + 0.006);
         const f0 = Math.max(0, f1 - 0.006);
         at(r, f0, liftOf(v, f0));
@@ -903,9 +1105,9 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
 
         ctx.globalAlpha = ease * vis;
 
-        // trail behind the vehicle (wake, contrail or dust), built from earlier points on the route
         const trailLen = v.kind === "ship" ? 22 : v.kind === "plane" ? 28 : 10;
-        const dRad = v.kind === "ship" ? 0.0105 : v.kind === "plane" ? 0.034 : 0.012;
+        const dRad =
+          v.kind === "ship" ? 0.0105 : v.kind === "plane" ? 0.034 : 0.012;
         const back0 = v.kind === "plane" ? 0.4 * v.size : 0.46 * v.size;
         let nT = 0;
         for (let i = 0; i < trailLen; i++) {
@@ -919,17 +1121,23 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         }
 
         if (v.kind === "ship") {
-          // ripples spreading from the hull
           for (let k = 0; k < 2; k++) {
             const p = reduce ? 0.4 + k * 0.4 : (time * 0.55 + k * 0.5) % 1;
             const rx = L * (0.38 + 0.55 * p);
             ctx.strokeStyle = `rgba(190,236,255,${(0.42 * (1 - p)).toFixed(3)})`;
             ctx.lineWidth = 1.2 * u;
             ctx.beginPath();
-            ctx.ellipse(sx, sy + L * 0.07, rx, rx * (0.16 + 0.2 * sz), 0, 0, TAU);
+            ctx.ellipse(
+              sx,
+              sy + L * 0.07,
+              rx,
+              rx * (0.16 + 0.2 * sz),
+              0,
+              0,
+              TAU,
+            );
             ctx.stroke();
           }
-          // foamy V wake
           for (let i = 1; i < nT; i++) {
             const a = 1 - i / nT;
             const dx = tx[i - 1] - tx[i];
@@ -947,19 +1155,29 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
             ctx.strokeStyle = `rgba(200,236,255,${(0.34 * a).toFixed(3)})`;
             ctx.lineWidth = (1.1 * a + 0.4) * u;
             ctx.beginPath();
-            ctx.moveTo(tx[i - 1] + nx * spread * 0.92, ty[i - 1] + ny * spread * 0.92 * 0.35 + L * 0.07);
-            ctx.lineTo(tx[i] + nx * spread, ty[i] + ny * spread * 0.35 + L * 0.07);
-            ctx.moveTo(tx[i - 1] - nx * spread * 0.92, ty[i - 1] - ny * spread * 0.92 * 0.35 + L * 0.07);
-            ctx.lineTo(tx[i] - nx * spread, ty[i] - ny * spread * 0.35 + L * 0.07);
+            ctx.moveTo(
+              tx[i - 1] + nx * spread * 0.92,
+              ty[i - 1] + ny * spread * 0.92 * 0.35 + L * 0.07,
+            );
+            ctx.lineTo(
+              tx[i] + nx * spread,
+              ty[i] + ny * spread * 0.35 + L * 0.07,
+            );
+            ctx.moveTo(
+              tx[i - 1] - nx * spread * 0.92,
+              ty[i - 1] - ny * spread * 0.92 * 0.35 + L * 0.07,
+            );
+            ctx.lineTo(
+              tx[i] - nx * spread,
+              ty[i] - ny * spread * 0.35 + L * 0.07,
+            );
             ctx.stroke();
           }
         } else if (v.kind === "plane") {
-          // shadow on the surface far below
           ctx.fillStyle = "rgba(2,10,24,0.34)";
           ctx.beginPath();
           ctx.ellipse(sx, sy, L * 0.3, L * 0.07, 0, 0, TAU);
           ctx.fill();
-          // contrail
           ctx.lineCap = "round";
           for (let i = 1; i < nT; i++) {
             const a = 1 - i / nT;
@@ -977,20 +1195,32 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
             ctx.stroke();
           }
         } else {
-          // dust kicked up behind the truck
           for (let i = 0; i < nT; i++) {
             const a = 1 - i / nT;
             const drift = reduce ? 0 : Math.sin(time * 3 + i * 1.7) * 0.8 * u;
             ctx.fillStyle = `rgba(214,196,168,${(0.3 * a * a).toFixed(3)})`;
             ctx.beginPath();
-            ctx.arc(tx[i], ty[i] + L * 0.1 - i * 0.7 * u + drift, (1.6 + i * 0.9) * u, 0, TAU);
+            ctx.arc(
+              tx[i],
+              ty[i] + L * 0.1 - i * 0.7 * u + drift,
+              (1.6 + i * 0.9) * u,
+              0,
+              TAU,
+            );
             ctx.fill();
           }
         }
 
-        // the vehicle itself
-        const bobY = v.kind === "ship" ? Math.sin(time * 2.3 + v.f0 * 9) * L * 0.012 * wob : 0;
-        const bobA = v.kind === "ship" ? Math.sin(time * 1.7 + v.f0 * 7) * 0.035 * wob : v.kind === "plane" ? Math.sin(time * 1.2 + v.f0 * 5) * 0.025 * wob : 0;
+        const bobY =
+          v.kind === "ship"
+            ? Math.sin(time * 2.3 + v.f0 * 9) * L * 0.012 * wob
+            : 0;
+        const bobA =
+          v.kind === "ship"
+            ? Math.sin(time * 1.7 + v.f0 * 7) * 0.035 * wob
+            : v.kind === "plane"
+              ? Math.sin(time * 1.2 + v.f0 * 5) * 0.025 * wob
+              : 0;
         ctx.save();
         ctx.translate(sx, sy - lift + bobY);
         ctx.rotate(v.dir * (ang + bobA));
@@ -1005,7 +1235,6 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         ctx.globalAlpha = ease;
       }
 
-      // orbit ring (front half) + orbiting satellite
       ring(true);
       const th = reduce ? 0.9 : time * 0.32 + 0.9;
       {
@@ -1015,7 +1244,13 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         const y = Math.sin(th) * 1.34;
         const y2 = y * Math.cos(incl);
         const z2 = y * Math.sin(incl);
-        proj(x * Math.cos(roll) - y2 * Math.sin(roll), x * Math.sin(roll) + y2 * Math.cos(roll), z2, R, false);
+        proj(
+          x * Math.cos(roll) - y2 * Math.sin(roll),
+          x * Math.sin(roll) + y2 * Math.cos(roll),
+          z2,
+          R,
+          false,
+        );
         if (Z > 0) {
           const g = ctx.createRadialGradient(X, Y, 0, X, Y, 11);
           g.addColorStop(0, "rgba(255,255,255,0.95)");
@@ -1028,7 +1263,6 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         }
       }
 
-      // rim light
       const rim = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
       rim.addColorStop(0, "rgba(160,215,255,0.72)");
       rim.addColorStop(0.28, "rgba(105,175,245,0.32)");
@@ -1054,7 +1288,6 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
     ro.observe(canvas);
 
     if (reduce) {
-      // no motion: a still frame, but the scene buttons still turn the globe
       api.current = {
         goTo: (i) => {
           const idx = clamp(Math.round(i), 0, GLOBE_SCENES.length - 1);
@@ -1085,15 +1318,20 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
     });
     io.observe(canvas);
 
-    /* ---- pointer: lean toward cursor, drag to turn ---- */
     const onMove = (e: PointerEvent) => {
       mouse.x = e.clientX / window.innerWidth;
       mouse.y = e.clientY / window.innerHeight;
     };
-    const interactive = (t: EventTarget | null) => !!(t as Element | null)?.closest?.("a,button,input,textarea,select,label,header,nav,[data-nodrag]");
+    const interactive = (t: EventTarget | null) =>
+      !!(t as Element | null)?.closest?.(
+        "a,button,input,textarea,select,label,header,nav,[data-nodrag]",
+      );
     const onGlobe = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
-      return Math.hypot(e.clientX - rect.left - G.cx, e.clientY - rect.top - G.cy) < G.R * 1.06;
+      return (
+        Math.hypot(e.clientX - rect.left - G.cx, e.clientY - rect.top - G.cy) <
+        G.R * 1.06
+      );
     };
     let dragId = -1;
     let lastX = 0;
@@ -1139,7 +1377,9 @@ export const TradeGlobe = forwardRef<GlobeHandle, Props>(function TradeGlobe({ c
         lastY = e.clientY;
         lastT = e.timeStamp;
       } else if (!dragging && e.pointerType === "mouse") {
-        setCursor(!interactive(e.target) && visible && onGlobe(e) ? "grab" : "");
+        setCursor(
+          !interactive(e.target) && visible && onGlobe(e) ? "grab" : "",
+        );
       }
     };
     const onUp = (e: PointerEvent) => {
